@@ -37,8 +37,11 @@
       border: 1px solid var(--btn-color);
       box-shadow: 0 0 10px var(--btn-color);
       background: transparent;
-      opacity: 0; /* la controlamos por JS */
-      transform: translate(-50%, -50%) scale(0.6);
+
+      /* Opacidad inicial fija, fade solo lo controla JS */
+      opacity: 0.9;
+      transform: translate(-50%, -50%) scale(1);
+
       z-index: 10;
       text-decoration: none;
 
@@ -55,14 +58,13 @@
       overflow: hidden;
       text-align: center;
 
-      /* Transiciones suaves, incluyendo opacity */
+      /* Transiciones SÓLO para cosas visuales, NO opacity */
       transition:
-        opacity 0.5s ease-out,
         background 0.6s ease,
         box-shadow 0.6s ease,
         transform 0.6s ease;
 
-      /* Wiggle solo en brillo/resplandor, sin tocar opacidad */
+      /* Wiggle solo en brillo/resplandor */
       animation: glowWiggle 3.5s ease-in-out infinite;
 
       user-select: none;
@@ -75,12 +77,11 @@
       filter: brightness(1.1);
     }
 
-    /* Ya NO desactivamos pointer-events aquí */
+    /* No tocamos pointer-events ni opacity aquí */
     .orbit-btn.fade-out {
-      /* solo marca de estado, el JS maneja opacity */
+      /* solo etiqueta de estado si la necesitas visualmente */
     }
 
-    /* Wiggle elegante en resplandor y brillo (sin opacidad) */
     @keyframes glowWiggle {
       0% {
         box-shadow: 0 0 8px var(--btn-color);
@@ -113,9 +114,10 @@
     const PARTICLE_LIFETIME = 1.2;
     const MAX_PARTICLES     = 600;
 
-    // 👉 5 s normal + 7 s fade
-    const CLUSTER_LIFETIME  = 5 * 1000;
-    const FADE_DURATION     = 7 * 1000;
+    // 5s normal + 7s fade
+    const VISIBLE_TIME   = 5 * 1000;  // ms con opacidad 0.9
+    const FADE_DURATION  = 7 * 1000;  // ms de fade
+    const TOTAL_LIFETIME = VISIBLE_TIME + FADE_DURATION;
 
     const ORBIT_RADIUS_BASE = 80;
     const ORBIT_SPEED_BASE  = 0.25;
@@ -342,13 +344,7 @@
         btn.style.width  = BUTTON_SIZE + "px";
         btn.style.height = BUTTON_SIZE + "px";
 
-        // Aparece con fade-in suave gracias a transition: opacity
-        btn.style.opacity = "0";
         document.body.appendChild(btn);
-        requestAnimationFrame(() => {
-          btn.style.opacity = "0.9";
-          btn.style.transform = "translate(-50%, -50%) scale(1)";
-        });
 
         buttons.push({
           el: btn,
@@ -362,8 +358,6 @@
         createdAt,
         centerX,
         centerY,
-        fading: false,
-        fadeStart: null,
         buttons
       });
     }
@@ -414,9 +408,10 @@
         const cluster  = clusters[i];
         const elapsed  = time - cluster.createdAt;
         const t        = elapsed / 1000;
-        const { centerX, centerY } = cluster;
+        const { centerX, centerY, buttons } = cluster;
 
-        cluster.buttons.forEach(btnObj => {
+        // órbitas
+        buttons.forEach(btnObj => {
           const angle = btnObj.offsetAngle + btnObj.speed * t;
           const x = centerX + Math.cos(angle) * btnObj.orbitRadius;
           const y = centerY + Math.sin(angle) * btnObj.orbitRadius;
@@ -424,31 +419,28 @@
           btnObj.el.style.top  = y + "px";
         });
 
-        // después de 5s empieza el fade
-        if (!cluster.fading && elapsed > CLUSTER_LIFETIME) {
-          cluster.fading = true;
-          cluster.fadeStart = time;
-          cluster.buttons.forEach(btnObj => btnObj.el.classList.add("fade-out"));
-        }
+        // opacidad según el tiempo
+        if (elapsed <= VISIBLE_TIME) {
+          // 0–5s → normal
+          buttons.forEach(btnObj => {
+            btnObj.el.style.opacity = "0.9";
+            btnObj.el.style.transform = "translate(-50%, -50%) scale(1)";
+          });
+        } else if (elapsed <= TOTAL_LIFETIME) {
+          // 5–12s → fade-out lineal
+          const fadeElapsed = elapsed - VISIBLE_TIME;
+          const fadeRatio = fadeElapsed / FADE_DURATION; // 0 → 1
+          const opacity = 0.9 * (1 - fadeRatio);        // 0.9 → 0
+          const scale   = 1 - 0.4 * fadeRatio;          // 1 → 0.6 (sutil)
 
-        if (cluster.fading) {
-          const fadeElapsed = time - cluster.fadeStart;
-          const ratio = Math.min(fadeElapsed / FADE_DURATION, 1);
-
-          const startOpacity = 0.9;
-          const endOpacity   = 0.135;
-          const opacity = startOpacity - (startOpacity - endOpacity) * ratio;
-          const scale   = 1 - 0.7 * ratio;
-
-          cluster.buttons.forEach(btnObj => {
+          buttons.forEach(btnObj => {
             btnObj.el.style.opacity = opacity.toString();
             btnObj.el.style.transform = `translate(-50%, -50%) scale(${scale})`;
           });
-
-          if (ratio >= 1) {
-            cluster.buttons.forEach(btnObj => btnObj.el.remove());
-            clusters.splice(i, 1);
-          }
+        } else {
+          // >12s → eliminar
+          buttons.forEach(btnObj => btnObj.el.remove());
+          clusters.splice(i, 1);
         }
       }
     }
