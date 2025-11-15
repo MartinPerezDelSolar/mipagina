@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>martinperezdelsolar · portafolio</title>
 
-  <!-- Metadatos de la página -->
   <meta name="author" content="martinperezdelsolar" />
   <meta name="description" content="Portafolio de arte y proyectos de martinperezdelsolar." />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -38,9 +37,8 @@
       border: 1px solid var(--btn-color);
       box-shadow: 0 0 10px var(--btn-color);
       background: transparent;
-      opacity: 0;
+      opacity: 0; /* la controlamos por JS */
       transform: translate(-50%, -50%) scale(0.6);
-      transition: background 0.6s ease, box-shadow 0.6s ease;
       z-index: 10;
       text-decoration: none;
 
@@ -48,7 +46,6 @@
       align-items: center;
       justify-content: center;
 
-      /* Verdana, pequeña y fina */
       font-family: Verdana, Geneva, sans-serif !important;
       font-size: 9px !important;
       font-weight: 300 !important;
@@ -58,10 +55,15 @@
       overflow: hidden;
       text-align: center;
 
-      /* Fade-in + wiggle elegante */
-      animation:
-        popIn 0.5s ease-out forwards,
-        glowWiggle 3.5s ease-in-out infinite;
+      /* Transiciones suaves, incluyendo opacity */
+      transition:
+        opacity 0.5s ease-out,
+        background 0.6s ease,
+        box-shadow 0.6s ease,
+        transform 0.6s ease;
+
+      /* Wiggle solo en brillo/resplandor, sin tocar opacidad */
+      animation: glowWiggle 3.5s ease-in-out infinite;
 
       user-select: none;
     }
@@ -73,16 +75,12 @@
       filter: brightness(1.1);
     }
 
-    /* Solo desactiva interacción, el fade real va en JS */
+    /* Ya NO desactivamos pointer-events aquí */
     .orbit-btn.fade-out {
-      pointer-events: none;
+      /* solo marca de estado, el JS maneja opacity */
     }
 
-    @keyframes popIn {
-      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
-      100% { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
-    }
-
+    /* Wiggle elegante en resplandor y brillo (sin opacidad) */
     @keyframes glowWiggle {
       0% {
         box-shadow: 0 0 8px var(--btn-color);
@@ -115,9 +113,9 @@
     const PARTICLE_LIFETIME = 1.2;
     const MAX_PARTICLES     = 600;
 
-    // 👉 5 segundos normal + 7 segundos de fade
-    const CLUSTER_LIFETIME_SEC = 5;
-    const FADE_DURATION_SEC    = 7;
+    // 👉 5 s normal + 7 s fade
+    const CLUSTER_LIFETIME  = 5 * 1000;
+    const FADE_DURATION     = 7 * 1000;
 
     const ORBIT_RADIUS_BASE = 80;
     const ORBIT_SPEED_BASE  = 0.25;
@@ -272,7 +270,7 @@
     initStars();
 
     // -----------------------
-    // PARTÍCULAS (MOUSE / TOUCH)
+    // PARTÍCULAS MOUSE/TOUCH
     // -----------------------
     const particles = [];
     let mouseX = width / 2;
@@ -317,6 +315,7 @@
     const clusters = [];
 
     function createCluster(centerX, centerY) {
+      const createdAt = performance.now();
       const buttons = [];
 
       const indices = [...Array(GALACTIC_PALETTE.length).keys()];
@@ -343,7 +342,13 @@
         btn.style.width  = BUTTON_SIZE + "px";
         btn.style.height = BUTTON_SIZE + "px";
 
+        // Aparece con fade-in suave gracias a transition: opacity
+        btn.style.opacity = "0";
         document.body.appendChild(btn);
+        requestAnimationFrame(() => {
+          btn.style.opacity = "0.9";
+          btn.style.transform = "translate(-50%, -50%) scale(1)";
+        });
 
         buttons.push({
           el: btn,
@@ -354,21 +359,21 @@
       }
 
       clusters.push({
+        createdAt,
         centerX,
         centerY,
-        age: 0,             // segundos desde que apareció
-        fadeProgress: 0,    // 0 → 1 durante el fade
         fading: false,
+        fadeStart: null,
         buttons
       });
     }
 
-    // Desktop: click crea cluster
+    // Desktop: click
     window.addEventListener('click', (e) => {
       createCluster(e.clientX, e.clientY);
     });
 
-    // Touch: doble toque crea cluster
+    // Touch: doble tap
     let lastTapTime = 0;
     let lastTapX = null;
     let lastTapY = null;
@@ -404,18 +409,13 @@
       lastTapY = y;
     }, { passive: false });
 
-    function updateClusters(deltaSec) {
+    function updateClusters(time) {
       for (let i = clusters.length - 1; i >= 0; i--) {
         const cluster  = clusters[i];
-
-        // edad total del cluster en segundos
-        cluster.age += deltaSec;
-
-        // tiempo para órbitas
-        const t = cluster.age;
+        const elapsed  = time - cluster.createdAt;
+        const t        = elapsed / 1000;
         const { centerX, centerY } = cluster;
 
-        // órbitas
         cluster.buttons.forEach(btnObj => {
           const angle = btnObj.offsetAngle + btnObj.speed * t;
           const x = centerX + Math.cos(angle) * btnObj.orbitRadius;
@@ -424,34 +424,28 @@
           btnObj.el.style.top  = y + "px";
         });
 
-        // iniciar fade después de CLUSTER_LIFETIME_SEC
-        if (!cluster.fading && cluster.age >= CLUSTER_LIFETIME_SEC) {
+        // después de 5s empieza el fade
+        if (!cluster.fading && elapsed > CLUSTER_LIFETIME) {
           cluster.fading = true;
+          cluster.fadeStart = time;
           cluster.buttons.forEach(btnObj => btnObj.el.classList.add("fade-out"));
         }
 
         if (cluster.fading) {
-          const increment = deltaSec / FADE_DURATION_SEC;
-          cluster.fadeProgress = Math.min(cluster.fadeProgress + increment, 1);
+          const fadeElapsed = time - cluster.fadeStart;
+          const ratio = Math.min(fadeElapsed / FADE_DURATION, 1);
 
-          const ratio = cluster.fadeProgress;
-
-          // opacidad de 0.9 a 0.135 (15% de 0.9)
           const startOpacity = 0.9;
           const endOpacity   = 0.135;
-          const opacity = startOpacity + (endOpacity - startOpacity) * ratio;
-
-          // escala de 1 a 0.3
-          const startScale = 1.0;
-          const endScale   = 0.3;
-          const scale = startScale + (endScale - startScale) * ratio;
+          const opacity = startOpacity - (startOpacity - endOpacity) * ratio;
+          const scale   = 1 - 0.7 * ratio;
 
           cluster.buttons.forEach(btnObj => {
-            btnObj.el.style.opacity = opacity;
+            btnObj.el.style.opacity = opacity.toString();
             btnObj.el.style.transform = `translate(-50%, -50%) scale(${scale})`;
           });
 
-          if (cluster.fadeProgress >= 1) {
+          if (ratio >= 1) {
             cluster.buttons.forEach(btnObj => btnObj.el.remove());
             clusters.splice(i, 1);
           }
@@ -460,7 +454,7 @@
     }
 
     // -----------------------
-    // DIBUJO DE NEBULOSAS
+    // NEBULOSAS
     // -----------------------
     function drawNebulas() {
       for (const neb of nebulas) {
@@ -543,10 +537,9 @@
     // -----------------------
     let lastTime = performance.now();
 
-    function animate(now) {
-      const deltaMs  = now - lastTime;
-      const deltaSec = deltaMs / 1000;
-      lastTime = now;
+    function animate(time) {
+      const delta = (time - lastTime) / 1000;
+      lastTime = time;
 
       ctx.clearRect(0, 0, width, height);
 
@@ -568,14 +561,14 @@
       ctx.globalAlpha = 1;
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.life -= deltaSec;
+        p.life -= delta;
         if (p.life <= 0) {
           particles.splice(i, 1);
           continue;
         }
         const lifeRatio = p.life / PARTICLE_LIFETIME;
-        p.x += p.vx * deltaSec;
-        p.y += p.vy * deltaSec;
+        p.x += p.vx * delta;
+        p.y += p.vy * delta;
 
         ctx.globalAlpha = lifeRatio * 0.9;
         ctx.beginPath();
@@ -586,11 +579,11 @@
 
       ctx.globalAlpha = 1;
 
-      updateClusters(deltaSec);
+      updateClusters(time);
       requestAnimationFrame(animate);
     }
 
-    requestAnimationFrame(animate);
+    animate(performance.now());
   </script>
 </body>
 </html>
