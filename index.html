@@ -107,18 +107,16 @@
     // -----------------------
     // CONFIGURACIÓN GENERAL
     // -----------------------
-    // ⭐ Duplicamos las estrellas globales
-    const STAR_COUNT         = 440;
-
+    const STAR_COUNT         = 440;          // estrellas globales (doble)
     const NEBULA_COUNT       = 8;
     const NEBULA_EXTRA_STARS = 90;
 
     const PARTICLE_LIFETIME = 1.2;           // segundos
     const MAX_PARTICLES     = 600;
 
-    // ⏱️ Botones: 7s activos + 7s de fade
-    const CLUSTER_LIFETIME  = 7 * 1000;     // ms antes de empezar a desvanecer botones
-    const FADE_DURATION     = 7 * 1000;     // ms del fade-out de botones
+    // Botones: 7s normales + 7s de fade hasta ~15%
+    const CLUSTER_LIFETIME  = 7 * 1000;
+    const FADE_DURATION     = 7 * 1000;
 
     const ORBIT_RADIUS_BASE = 80;
     const ORBIT_SPEED_BASE  = 0.25;          // rad/s
@@ -259,7 +257,7 @@
     function initStars() {
       stars.length = 0;
 
-      // estrellas "globales" (duplicadas)
+      // estrellas globales
       for (let i = 0; i < STAR_COUNT; i++) {
         pushStar(Math.random() * width, Math.random() * height, false);
       }
@@ -280,17 +278,29 @@
     initStars();
 
     // -----------------------
-    // PARTÍCULAS DEL MOUSE
+    // PARTÍCULAS DEL MOUSE / DEDO
     // -----------------------
     const particles = [];
     let mouseX = width / 2;
     let mouseY = height / 2;
 
+    // Desktop: estela con el mouse
     window.addEventListener('mousemove', (e) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
       createTrailParticles(mouseX, mouseY);
     });
+
+    // Touch: estela con el dedo
+    window.addEventListener('touchmove', (e) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      mouseX = touch.clientX;
+      mouseY = touch.clientY;
+      createTrailParticles(mouseX, mouseY);
+      // evitar scroll sobre la página
+      e.preventDefault();
+    }, { passive: false });
 
     function createTrailParticles(x, y) {
       for (let i = 0; i < 3; i++) {
@@ -315,11 +325,9 @@
     // -----------------------
     const clusters = [];
 
-    window.addEventListener('click', (e) => {
-      const centerX   = e.clientX;
-      const centerY   = e.clientY;
+    // Función común para crear un cluster (desktop y touch)
+    function createCluster(centerX, centerY) {
       const createdAt = performance.now();
-
       const buttons = [];
 
       // elegimos 5 índices distintos al azar de la paleta de 10
@@ -365,7 +373,50 @@
         fadeStart: null,
         buttons
       });
+    }
+
+    // Desktop: click crea cluster
+    window.addEventListener('click', (e) => {
+      createCluster(e.clientX, e.clientY);
     });
+
+    // Touch: doble toque crea cluster
+    let lastTapTime = 0;
+    let lastTapX = null;
+    let lastTapY = null;
+    const DOUBLE_TAP_MAX_DELAY = 350; // ms
+    const DOUBLE_TAP_MAX_DIST  = 30;  // px
+
+    window.addEventListener('touchstart', (e) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      const x = touch.clientX;
+      const y = touch.clientY;
+      const now = performance.now();
+
+      if (lastTapTime) {
+        const dt = now - lastTapTime;
+        const dx = x - lastTapX;
+        const dy = y - lastTapY;
+        const dist2 = dx * dx + dy * dy;
+
+        if (dt < DOUBLE_TAP_MAX_DELAY && dist2 < DOUBLE_TAP_MAX_DIST * DOUBLE_TAP_MAX_DIST) {
+          // doble toque detectado
+          e.preventDefault(); // intenta evitar click fantasma
+          createCluster(x, y);
+          lastTapTime = 0;
+          lastTapX = null;
+          lastTapY = null;
+          return;
+        }
+      }
+
+      // si no fue doble tap, guardamos este como posible primer toque
+      lastTapTime = now;
+      lastTapX = x;
+      lastTapY = y;
+    }, { passive: false });
 
     function updateClusters(time) {
       for (let i = clusters.length - 1; i >= 0; i--) {
@@ -383,7 +434,7 @@
           btnObj.el.style.top  = y + "px";
         });
 
-        // iniciar fade-out después de CLUSTER_LIFETIME (7s)
+        // iniciar fade-out después de CLUSTER_LIFETIME
         if (!cluster.fading && elapsed > CLUSTER_LIFETIME) {
           cluster.fading = true;
           cluster.fadeStart = time;
@@ -408,7 +459,6 @@
             btnObj.el.style.transform = `translate(-50%, -50%) scale(${scale})`;
           });
 
-          // al terminar el fade (ya está en ~15%), se eliminan
           if (ratio >= 1) {
             cluster.buttons.forEach(btnObj => btnObj.el.remove());
             clusters.splice(i, 1);
@@ -418,14 +468,13 @@
     }
 
     // -----------------------
-    // DIBUJO DE NEBULOSAS
-    // (misma forma, pero opacidad a la mitad)
+    // DIBUJO DE NEBULOSAS (opacidad suave)
     // -----------------------
     function drawNebulas() {
       for (const neb of nebulas) {
         const c = neb.color;
 
-        // Gradiente muy sutil para la forma grande (mitad de opacidad)
+        // Forma grande (opacidad muy baja)
         const grad = ctx.createRadialGradient(
           neb.x, neb.y, 0,
           neb.x, neb.y, neb.outerRadius
@@ -457,7 +506,7 @@
           ctx.fill();
         }
 
-        // Núcleo más pequeño, también con opacidad reducida a la mitad
+        // Núcleo pequeño
         if (neb.core && neb.core.points && neb.core.points.length >= 3) {
           const cc = neb.color;
           const core = neb.core;
@@ -523,7 +572,7 @@
         ctx.fill();
       }
 
-      // partículas del mouse
+      // partículas del mouse/dedo
       ctx.globalAlpha = 1;
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
