@@ -73,6 +73,7 @@
       filter: brightness(1.1);
     }
 
+    /* Solo desactiva interacción, el fade real va en JS */
     .orbit-btn.fade-out {
       pointer-events: none;
     }
@@ -115,8 +116,8 @@
     const MAX_PARTICLES     = 600;
 
     // 👉 5 segundos normal + 7 segundos de fade
-    const CLUSTER_LIFETIME  = 5 * 1000;
-    const FADE_DURATION     = 7 * 1000;
+    const CLUSTER_LIFETIME_SEC = 5;
+    const FADE_DURATION_SEC    = 7;
 
     const ORBIT_RADIUS_BASE = 80;
     const ORBIT_SPEED_BASE  = 0.25;
@@ -316,7 +317,6 @@
     const clusters = [];
 
     function createCluster(centerX, centerY) {
-      const createdAt = performance.now();
       const buttons = [];
 
       const indices = [...Array(GALACTIC_PALETTE.length).keys()];
@@ -354,19 +354,21 @@
       }
 
       clusters.push({
-        createdAt,
         centerX,
         centerY,
+        age: 0,             // segundos desde que apareció
+        fadeProgress: 0,    // 0 → 1 durante el fade
         fading: false,
-        fadeStart: null,
         buttons
       });
     }
 
+    // Desktop: click crea cluster
     window.addEventListener('click', (e) => {
       createCluster(e.clientX, e.clientY);
     });
 
+    // Touch: doble toque crea cluster
     let lastTapTime = 0;
     let lastTapX = null;
     let lastTapY = null;
@@ -402,13 +404,18 @@
       lastTapY = y;
     }, { passive: false });
 
-    function updateClusters(time) {
+    function updateClusters(deltaSec) {
       for (let i = clusters.length - 1; i >= 0; i--) {
         const cluster  = clusters[i];
-        const elapsed  = time - cluster.createdAt;
-        const t        = elapsed / 1000;
+
+        // edad total del cluster en segundos
+        cluster.age += deltaSec;
+
+        // tiempo para órbitas
+        const t = cluster.age;
         const { centerX, centerY } = cluster;
 
+        // órbitas
         cluster.buttons.forEach(btnObj => {
           const angle = btnObj.offsetAngle + btnObj.speed * t;
           const x = centerX + Math.cos(angle) * btnObj.orbitRadius;
@@ -417,28 +424,34 @@
           btnObj.el.style.top  = y + "px";
         });
 
-        if (!cluster.fading && elapsed > CLUSTER_LIFETIME) {
+        // iniciar fade después de CLUSTER_LIFETIME_SEC
+        if (!cluster.fading && cluster.age >= CLUSTER_LIFETIME_SEC) {
           cluster.fading = true;
-          cluster.fadeStart = time;
           cluster.buttons.forEach(btnObj => btnObj.el.classList.add("fade-out"));
         }
 
         if (cluster.fading) {
-          const fadeElapsed = time - cluster.fadeStart;
-          const ratio = Math.min(fadeElapsed / FADE_DURATION, 1);
+          const increment = deltaSec / FADE_DURATION_SEC;
+          cluster.fadeProgress = Math.min(cluster.fadeProgress + increment, 1);
 
+          const ratio = cluster.fadeProgress;
+
+          // opacidad de 0.9 a 0.135 (15% de 0.9)
           const startOpacity = 0.9;
           const endOpacity   = 0.135;
-          const opacity = startOpacity - (startOpacity - endOpacity) * ratio;
+          const opacity = startOpacity + (endOpacity - startOpacity) * ratio;
 
-          const scale   = 1 - 0.7 * ratio;
+          // escala de 1 a 0.3
+          const startScale = 1.0;
+          const endScale   = 0.3;
+          const scale = startScale + (endScale - startScale) * ratio;
 
           cluster.buttons.forEach(btnObj => {
             btnObj.el.style.opacity = opacity;
             btnObj.el.style.transform = `translate(-50%, -50%) scale(${scale})`;
           });
 
-          if (ratio >= 1) {
+          if (cluster.fadeProgress >= 1) {
             cluster.buttons.forEach(btnObj => btnObj.el.remove());
             clusters.splice(i, 1);
           }
@@ -530,9 +543,10 @@
     // -----------------------
     let lastTime = performance.now();
 
-    function animate(time) {
-      const delta = (time - lastTime) / 1000;
-      lastTime = time;
+    function animate(now) {
+      const deltaMs  = now - lastTime;
+      const deltaSec = deltaMs / 1000;
+      lastTime = now;
 
       ctx.clearRect(0, 0, width, height);
 
@@ -554,14 +568,14 @@
       ctx.globalAlpha = 1;
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.life -= delta;
+        p.life -= deltaSec;
         if (p.life <= 0) {
           particles.splice(i, 1);
           continue;
         }
         const lifeRatio = p.life / PARTICLE_LIFETIME;
-        p.x += p.vx * delta;
-        p.y += p.vy * delta;
+        p.x += p.vx * deltaSec;
+        p.y += p.vy * deltaSec;
 
         ctx.globalAlpha = lifeRatio * 0.9;
         ctx.beginPath();
@@ -572,11 +586,11 @@
 
       ctx.globalAlpha = 1;
 
-      updateClusters(time);
+      updateClusters(deltaSec);
       requestAnimationFrame(animate);
     }
 
-    animate(performance.now());
+    requestAnimationFrame(animate);
   </script>
 </body>
 </html>
