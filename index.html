@@ -104,6 +104,9 @@
   <canvas id="bg"></canvas>
 
   <script>
+    // Detectar móvil (iPhone, Android, etc.)
+    const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
     // -----------------------
     // CONFIGURACIÓN GENERAL
     // -----------------------
@@ -114,7 +117,7 @@
     const PARTICLE_LIFETIME = 1.2;           // segundos
     const MAX_PARTICLES     = 600;
 
-    // Botones: 7s normales + 7s de fade hasta ~15%
+    // Botones: 7s normales + 7s de fade
     const CLUSTER_LIFETIME  = 7 * 1000;
     const FADE_DURATION     = 7 * 1000;
 
@@ -298,7 +301,6 @@
       mouseX = touch.clientX;
       mouseY = touch.clientY;
       createTrailParticles(mouseX, mouseY);
-      // evitar scroll sobre la página
       e.preventDefault();
     }, { passive: false });
 
@@ -325,7 +327,6 @@
     // -----------------------
     const clusters = [];
 
-    // Función común para crear un cluster (desktop y touch)
     function createCluster(centerX, centerY) {
       const createdAt = performance.now();
       const buttons = [];
@@ -402,8 +403,7 @@
         const dist2 = dx * dx + dy * dy;
 
         if (dt < DOUBLE_TAP_MAX_DELAY && dist2 < DOUBLE_TAP_MAX_DIST * DOUBLE_TAP_MAX_DIST) {
-          // doble toque detectado
-          e.preventDefault(); // intenta evitar click fantasma
+          e.preventDefault();
           createCluster(x, y);
           lastTapTime = 0;
           lastTapX = null;
@@ -412,7 +412,6 @@
         }
       }
 
-      // si no fue doble tap, guardamos este como posible primer toque
       lastTapTime = now;
       lastTapX = x;
       lastTapY = y;
@@ -446,12 +445,10 @@
           const fadeElapsed = time - cluster.fadeStart;
           const ratio = Math.min(fadeElapsed / FADE_DURATION, 1);
 
-          // Opacidad: de 0.9 a ~0.135 (15% de 0.9)
           const startOpacity = 0.9;
-          const endOpacity   = 0.135;
+          const endOpacity   = 0.135; // ~15% de 0.9
           const opacity = startOpacity - (startOpacity - endOpacity) * ratio;
 
-          // Scale igual que antes (de 1 a 0.3)
           const scale   = 1 - 0.7 * ratio;
 
           cluster.buttons.forEach(btnObj => {
@@ -468,19 +465,26 @@
     }
 
     // -----------------------
-    // DIBUJO DE NEBULOSAS (opacidad suave)
+    // DIBUJO DE NEBULOSAS
+    // (desktop: sutil; móvil: un poco más visibles)
     // -----------------------
     function drawNebulas() {
       for (const neb of nebulas) {
         const c = neb.color;
 
-        // Forma grande (opacidad muy baja)
+        // Valores distintos según si es móvil o no
+        const outerAlpha0 = IS_MOBILE ? 0.09  : 0.045;
+        const outerAlpha1 = IS_MOBILE ? 0.05  : 0.025;
+        const coreAlpha0  = IS_MOBILE ? 0.14  : 0.07;
+        const coreAlpha1  = IS_MOBILE ? 0.06  : 0.03;
+
+        // Forma grande
         const grad = ctx.createRadialGradient(
           neb.x, neb.y, 0,
           neb.x, neb.y, neb.outerRadius
         );
-        grad.addColorStop(0.0, `rgba(${c.r},${c.g},${c.b},0.045)`);
-        grad.addColorStop(0.4, `rgba(${c.r},${c.g},${c.b},0.025)`);
+        grad.addColorStop(0.0, `rgba(${c.r},${c.g},${c.b},${outerAlpha0})`);
+        grad.addColorStop(0.4, `rgba(${c.r},${c.g},${c.b},${outerAlpha1})`);
         grad.addColorStop(1.0, `rgba(${c.r},${c.g},${c.b},0.0)`);
 
         const pts = neb.points;
@@ -515,8 +519,8 @@
             core.x, core.y, 0,
             core.x, core.y, core.radius
           );
-          gradCore.addColorStop(0.0, `rgba(${cc.r},${cc.g},${cc.b},0.07)`);
-          gradCore.addColorStop(0.6, `rgba(${cc.r},${cc.g},${cc.b},0.03)`);
+          gradCore.addColorStop(0.0, `rgba(${cc.r},${cc.g},${cc.b},${coreAlpha0})`);
+          gradCore.addColorStop(0.6, `rgba(${cc.r},${cc.g},${cc.b},${coreAlpha1})`);
           gradCore.addColorStop(1.0, `rgba(${cc.r},${cc.g},${cc.b},0.0)`);
 
           const cpts = core.points;
