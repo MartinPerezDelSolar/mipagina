@@ -73,7 +73,6 @@
       filter: brightness(1.1);
     }
 
-    /* en fade-out solo desactivamos interacción, el resto lo maneja JS */
     .orbit-btn.fade-out {
       pointer-events: none;
     }
@@ -83,7 +82,6 @@
       100% { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
     }
 
-    /* Wiggle elegante en resplandor y brillo */
     @keyframes glowWiggle {
       0% {
         box-shadow: 0 0 8px var(--btn-color);
@@ -104,43 +102,40 @@
   <canvas id="bg"></canvas>
 
   <script>
-    // Detectar móvil (iPhone, Android, etc.)
     const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     // -----------------------
     // CONFIGURACIÓN GENERAL
     // -----------------------
-    const STAR_COUNT         = 440;          // estrellas globales (doble)
+    const STAR_COUNT         = 440;
     const NEBULA_COUNT       = 8;
     const NEBULA_EXTRA_STARS = 90;
 
-    const PARTICLE_LIFETIME = 1.2;           // segundos
+    const PARTICLE_LIFETIME = 1.2;
     const MAX_PARTICLES     = 600;
 
-    // Botones: 7s normales + 7s de fade
-    const CLUSTER_LIFETIME  = 7 * 1000;
+    // 👉 5 segundos normal + 7 segundos de fade
+    const CLUSTER_LIFETIME  = 5 * 1000;
     const FADE_DURATION     = 7 * 1000;
 
     const ORBIT_RADIUS_BASE = 80;
-    const ORBIT_SPEED_BASE  = 0.25;          // rad/s
+    const ORBIT_SPEED_BASE  = 0.25;
     const BUTTON_SIZE       = 58;
     const BUTTON_LABELS     = ["BIO", "LINKS", "CONTACT", "FUN", "ART"];
 
-    // Paleta retro tipo Atari 70s (10 colores)
     const GALACTIC_PALETTE = [
-      "rgba(248,240,224,0.95)", // crema cálida
-      "rgba(234,181,81,0.95)",  // mostaza
-      "rgba(210,109,49,0.95)",  // naranja quemado
-      "rgba(180,52,41,0.95)",   // rojo ladrillo
-      "rgba(146,68,148,0.95)",  // púrpura retro
-      "rgba(92,95,167,0.95)",   // azul violeta
-      "rgba(58,130,164,0.95)",  // azul petróleo
-      "rgba(77,120,74,0.95)",   // verde musgo
-      "rgba(149,150,65,0.95)",  // oliva apagado
-      "rgba(205,163,155,0.95)"  // rosa polvoriento
+      "rgba(248,240,224,0.95)",
+      "rgba(234,181,81,0.95)",
+      "rgba(210,109,49,0.95)",
+      "rgba(180,52,41,0.95)",
+      "rgba(146,68,148,0.95)",
+      "rgba(92,95,167,0.95)",
+      "rgba(58,130,164,0.95)",
+      "rgba(77,120,74,0.95)",
+      "rgba(149,150,65,0.95)",
+      "rgba(205,163,155,0.95)"
     ];
 
-    // Paleta de colores para nebulosas (RGB)
     const NEBULA_COLORS = [
       { r: 140, g: 110, b: 200 },
       { r: 80,  g: 120, b: 190 },
@@ -149,17 +144,16 @@
       { r: 190, g: 130, b: 110 }
     ];
 
-    // Enlaces de cada botón (ajusta a tus URLs reales)
     const LINK_TARGETS = [
-      "https://tusitio.com/bio",      // BIO
-      "https://tusitio.com/links",    // LINKS
-      "https://tusitio.com/contact",  // CONTACT
-      "https://tusitio.com/fun",      // FUN
-      "https://tusitio.com/art"       // ART
+      "https://tusitio.com/bio",
+      "https://tusitio.com/links",
+      "https://tusitio.com/contact",
+      "https://tusitio.com/fun",
+      "https://tusitio.com/art"
     ];
 
     // -----------------------
-    // INICIALIZACIÓN CANVAS
+    // CANVAS
     // -----------------------
     const canvas = document.getElementById('bg');
     const ctx = canvas.getContext('2d');
@@ -196,8 +190,7 @@
 
         const color = NEBULA_COLORS[i % NEBULA_COLORS.length];
 
-        // Forma grande orgánica
-        const numPoints = 10 + Math.floor(Math.random() * 5); // 10–14 puntos
+        const numPoints = 10 + Math.floor(Math.random() * 5);
         const points = [];
         for (let p = 0; p < numPoints; p++) {
           const angle = (Math.PI * 2 / numPoints) * p + Math.random() * 0.3;
@@ -207,15 +200,14 @@
           points.push({ x, y });
         }
 
-        // Núcleo pequeño: 20–40% del tamaño, desplazado ±10 px
         const offsetX = (Math.random() * 20) - 10;
         const offsetY = (Math.random() * 20) - 10;
         const coreX = cx + offsetX;
         const coreY = cy + offsetY;
-        const coreRadiusBase = outerRadius * (0.2 + Math.random() * 0.2); // 20–40%
+        const coreRadiusBase = outerRadius * (0.2 + Math.random() * 0.2);
 
         const corePoints = [];
-        const corePointsCount = 8 + Math.floor(Math.random() * 4); // 8–11 puntos
+        const corePointsCount = 8 + Math.floor(Math.random() * 4);
         for (let p = 0; p < corePointsCount; p++) {
           const angle = (Math.PI * 2 / corePointsCount) * p + Math.random() * 0.3;
           const r = coreRadiusBase * (0.7 + Math.random() * 0.3);
@@ -260,12 +252,10 @@
     function initStars() {
       stars.length = 0;
 
-      // estrellas globales
       for (let i = 0; i < STAR_COUNT; i++) {
         pushStar(Math.random() * width, Math.random() * height, false);
       }
 
-      // estrellas extra cerca de cada nebulosa
       for (const neb of nebulas) {
         for (let i = 0; i < NEBULA_EXTRA_STARS; i++) {
           const r = Math.random() * neb.innerRadius;
@@ -281,20 +271,18 @@
     initStars();
 
     // -----------------------
-    // PARTÍCULAS DEL MOUSE / DEDO
+    // PARTÍCULAS (MOUSE / TOUCH)
     // -----------------------
     const particles = [];
     let mouseX = width / 2;
     let mouseY = height / 2;
 
-    // Desktop: estela con el mouse
     window.addEventListener('mousemove', (e) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
       createTrailParticles(mouseX, mouseY);
     });
 
-    // Touch: estela con el dedo
     window.addEventListener('touchmove', (e) => {
       const touch = e.touches[0];
       if (!touch) return;
@@ -331,7 +319,6 @@
       const createdAt = performance.now();
       const buttons = [];
 
-      // elegimos 5 índices distintos al azar de la paleta de 10
       const indices = [...Array(GALACTIC_PALETTE.length).keys()];
       for (let i = indices.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -376,17 +363,15 @@
       });
     }
 
-    // Desktop: click crea cluster
     window.addEventListener('click', (e) => {
       createCluster(e.clientX, e.clientY);
     });
 
-    // Touch: doble toque crea cluster
     let lastTapTime = 0;
     let lastTapX = null;
     let lastTapY = null;
-    const DOUBLE_TAP_MAX_DELAY = 350; // ms
-    const DOUBLE_TAP_MAX_DIST  = 30;  // px
+    const DOUBLE_TAP_MAX_DELAY = 350;
+    const DOUBLE_TAP_MAX_DIST  = 30;
 
     window.addEventListener('touchstart', (e) => {
       const touch = e.touches[0];
@@ -424,7 +409,6 @@
         const t        = elapsed / 1000;
         const { centerX, centerY } = cluster;
 
-        // órbitas mientras el cluster exista
         cluster.buttons.forEach(btnObj => {
           const angle = btnObj.offsetAngle + btnObj.speed * t;
           const x = centerX + Math.cos(angle) * btnObj.orbitRadius;
@@ -433,20 +417,18 @@
           btnObj.el.style.top  = y + "px";
         });
 
-        // iniciar fade-out después de CLUSTER_LIFETIME
         if (!cluster.fading && elapsed > CLUSTER_LIFETIME) {
           cluster.fading = true;
           cluster.fadeStart = time;
           cluster.buttons.forEach(btnObj => btnObj.el.classList.add("fade-out"));
         }
 
-        // manejar desvanecimiento vía JS
         if (cluster.fading) {
           const fadeElapsed = time - cluster.fadeStart;
           const ratio = Math.min(fadeElapsed / FADE_DURATION, 1);
 
           const startOpacity = 0.9;
-          const endOpacity   = 0.135; // ~15% de 0.9
+          const endOpacity   = 0.135;
           const opacity = startOpacity - (startOpacity - endOpacity) * ratio;
 
           const scale   = 1 - 0.7 * ratio;
@@ -466,19 +448,16 @@
 
     // -----------------------
     // DIBUJO DE NEBULOSAS
-    // (desktop: sutil; móvil: un poco más visibles)
     // -----------------------
     function drawNebulas() {
       for (const neb of nebulas) {
         const c = neb.color;
 
-        // Valores distintos según si es móvil o no
         const outerAlpha0 = IS_MOBILE ? 0.09  : 0.045;
         const outerAlpha1 = IS_MOBILE ? 0.05  : 0.025;
         const coreAlpha0  = IS_MOBILE ? 0.14  : 0.07;
         const coreAlpha1  = IS_MOBILE ? 0.06  : 0.03;
 
-        // Forma grande
         const grad = ctx.createRadialGradient(
           neb.x, neb.y, 0,
           neb.x, neb.y, neb.outerRadius
@@ -510,7 +489,6 @@
           ctx.fill();
         }
 
-        // Núcleo pequeño
         if (neb.core && neb.core.points && neb.core.points.length >= 3) {
           const cc = neb.color;
           const core = neb.core;
@@ -558,14 +536,11 @@
 
       ctx.clearRect(0, 0, width, height);
 
-      // fondo negro
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, width, height);
 
-      // nebulosas (debajo de las estrellas)
       drawNebulas();
 
-      // estrellas
       for (const star of stars) {
         star.phase += star.twinkleSpeed * 16;
         const alpha = star.baseAlpha + Math.sin(star.phase) * 0.3;
@@ -576,7 +551,6 @@
         ctx.fill();
       }
 
-      // partículas del mouse/dedo
       ctx.globalAlpha = 1;
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
