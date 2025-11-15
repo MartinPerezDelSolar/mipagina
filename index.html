@@ -31,14 +31,13 @@
 
     .orbit-btn {
       position: fixed;
-      width: 58px;
-      height: 58px;
+      width: 72px;   /* tamaño visual inicial, JS también lo define */
+      height: 72px;
       border-radius: 50%;
       border: 1px solid var(--btn-color);
       box-shadow: 0 0 10px var(--btn-color);
       background: transparent;
 
-      /* Opacidad inicial fija, fade solo lo controla JS */
       opacity: 0.9;
       transform: translate(-50%, -50%) scale(1);
 
@@ -58,13 +57,11 @@
       overflow: hidden;
       text-align: center;
 
-      /* Transiciones SÓLO para cosas visuales, NO opacity */
       transition:
         background 0.6s ease,
         box-shadow 0.6s ease,
         transform 0.6s ease;
 
-      /* Wiggle solo en brillo/resplandor */
       animation: glowWiggle 3.5s ease-in-out infinite;
 
       user-select: none;
@@ -77,9 +74,8 @@
       filter: brightness(1.1);
     }
 
-    /* No tocamos pointer-events ni opacity aquí */
     .orbit-btn.fade-out {
-      /* solo etiqueta de estado si la necesitas visualmente */
+      /* etiqueta opcional */
     }
 
     @keyframes glowWiggle {
@@ -115,13 +111,14 @@
     const MAX_PARTICLES     = 600;
 
     // 5s normal + 7s fade
-    const VISIBLE_TIME   = 5 * 1000;  // ms con opacidad 0.9
-    const FADE_DURATION  = 7 * 1000;  // ms de fade
+    const VISIBLE_TIME   = 5 * 1000;
+    const FADE_DURATION  = 7 * 1000;
     const TOTAL_LIFETIME = VISIBLE_TIME + FADE_DURATION;
 
     const ORBIT_RADIUS_BASE = 80;
     const ORBIT_SPEED_BASE  = 0.25;
-    const BUTTON_SIZE       = 58;
+
+    const BUTTON_SIZE       = 72;  // ← más grande para que sea fácil de tocar
     const BUTTON_LABELS     = ["BIO", "LINKS", "CONTACT", "FUN", "ART"];
 
     const GALACTIC_PALETTE = [
@@ -362,12 +359,13 @@
       });
     }
 
-    // Desktop: click
+    // Desktop: click → crea menú
     window.addEventListener('click', (e) => {
+      if (IS_MOBILE) return; // en móviles NO usar el click sintetizado
       createCluster(e.clientX, e.clientY);
     });
 
-    // Touch: doble tap
+    // Touch: doble tap → crea menú
     let lastTapTime = 0;
     let lastTapX = null;
     let lastTapY = null;
@@ -410,7 +408,6 @@
         const t        = elapsed / 1000;
         const { centerX, centerY, buttons } = cluster;
 
-        // órbitas
         buttons.forEach(btnObj => {
           const angle = btnObj.offsetAngle + btnObj.speed * t;
           const x = centerX + Math.cos(angle) * btnObj.orbitRadius;
@@ -419,26 +416,22 @@
           btnObj.el.style.top  = y + "px";
         });
 
-        // opacidad según el tiempo
         if (elapsed <= VISIBLE_TIME) {
-          // 0–5s → normal
           buttons.forEach(btnObj => {
             btnObj.el.style.opacity = "0.9";
             btnObj.el.style.transform = "translate(-50%, -50%) scale(1)";
           });
         } else if (elapsed <= TOTAL_LIFETIME) {
-          // 5–12s → fade-out lineal
           const fadeElapsed = elapsed - VISIBLE_TIME;
-          const fadeRatio = fadeElapsed / FADE_DURATION; // 0 → 1
-          const opacity = 0.9 * (1 - fadeRatio);        // 0.9 → 0
-          const scale   = 1 - 0.4 * fadeRatio;          // 1 → 0.6 (sutil)
+          const fadeRatio = fadeElapsed / FADE_DURATION; // 0–1
+          const opacity = 0.9 * (1 - fadeRatio);        // 0.9→0
+          const scale   = 1 - 0.4 * fadeRatio;          // 1→0.6
 
           buttons.forEach(btnObj => {
             btnObj.el.style.opacity = opacity.toString();
             btnObj.el.style.transform = `translate(-50%, -50%) scale(${scale})`;
           });
         } else {
-          // >12s → eliminar
           buttons.forEach(btnObj => btnObj.el.remove());
           clusters.splice(i, 1);
         }
