@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>martinperezdelsolar · portafolio</title>
+
+  <!-- Metadatos de la página -->
+  <meta name="author" content="martinperezdelsolar" />
+  <meta name="description" content="Portafolio de arte y proyectos de martinperezdelsolar." />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      cursor: crosshair;
+      font-family: Verdana, Geneva, sans-serif;
+    }
+
+    canvas#bg {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #000;
+    }
+
+    .orbit-btn {
+      position: fixed;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      border: 1px solid var(--btn-color);
+      box-shadow: 0 0 10px var(--btn-color);
+      background: transparent;
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.6);
+      transition: background 0.6s ease, box-shadow 0.6s ease;
+      z-index: 10;
+      text-decoration: none;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      /* Verdana, pequeña y fina */
+      font-family: Verdana, Geneva, sans-serif !important;
+      font-size: 9px !important;
+      font-weight: 300 !important;
+      color: #ffffff !important;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-align: center;
+
+      /* Fade-in + wiggle elegante */
+      animation:
+        popIn 0.5s ease-out forwards,
+        glowWiggle 3.5s ease-in-out infinite;
+
+      user-select: none;
+    }
+
+    .orbit-btn:hover {
+      background: var(--btn-bg);
+      transform: translate(-50%, -50%) scale(1.08);
+      box-shadow: 0 0 18px var(--btn-color);
+      filter: brightness(1.1);
+    }
+
+    /* en fade-out solo desactivamos interacción, el resto lo maneja JS */
+    .orbit-btn.fade-out {
+      pointer-events: none;
+    }
+
+    @keyframes popIn {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+      100% { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
+    }
+
+    /* Wiggle elegante en resplandor y brillo */
+    @keyframes glowWiggle {
+      0% {
+        box-shadow: 0 0 8px var(--btn-color);
+        filter: brightness(0.9);
+      }
+      50% {
+        box-shadow: 0 0 16px var(--btn-color);
+        filter: brightness(1.06);
+      }
+      100% {
+        box-shadow: 0 0 10px var(--btn-color);
+        filter: brightness(1.0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+
+  <script>
+    // -----------------------
+    // CONFIGURACIÓN GENERAL
+    // -----------------------
+    // ⭐ Duplicamos las estrellas globales
+    const STAR_COUNT         = 440;
+
+    const NEBULA_COUNT       = 8;
+    const NEBULA_EXTRA_STARS = 90;
+
+    const PARTICLE_LIFETIME = 1.2;           // segundos
+    const MAX_PARTICLES     = 600;
+
+    // ⏱️ Botones: 7s activos + 7s de fade
+    const CLUSTER_LIFETIME  = 7 * 1000;     // ms antes de empezar a desvanecer botones
+    const FADE_DURATION     = 7 * 1000;     // ms del fade-out de botones
+
+    const ORBIT_RADIUS_BASE = 80;
+    const ORBIT_SPEED_BASE  = 0.25;          // rad/s
+    const BUTTON_SIZE       = 58;
+    const BUTTON_LABELS     = ["BIO", "LINKS", "CONTACT", "FUN", "ART"];
+
+    // Paleta retro tipo Atari 70s (10 colores)
+    const GALACTIC_PALETTE = [
+      "rgba(248,240,224,0.95)", // crema cálida
+      "rgba(234,181,81,0.95)",  // mostaza
+      "rgba(210,109,49,0.95)",  // naranja quemado
+      "rgba(180,52,41,0.95)",   // rojo ladrillo
+      "rgba(146,68,148,0.95)",  // púrpura retro
+      "rgba(92,95,167,0.95)",   // azul violeta
+      "rgba(58,130,164,0.95)",  // azul petróleo
+      "rgba(77,120,74,0.95)",   // verde musgo
+      "rgba(149,150,65,0.95)",  // oliva apagado
+      "rgba(205,163,155,0.95)"  // rosa polvoriento
+    ];
+
+    // Paleta de colores para nebulosas (RGB)
+    const NEBULA_COLORS = [
+      { r: 140, g: 110, b: 200 },
+      { r: 80,  g: 120, b: 190 },
+      { r: 180, g: 100, b: 160 },
+      { r: 90,  g: 150, b: 150 },
+      { r: 190, g: 130, b: 110 }
+    ];
+
+    // Enlaces de cada botón (ajusta a tus URLs reales)
+    const LINK_TARGETS = [
+      "https://tusitio.com/bio",      // BIO
+      "https://tusitio.com/links",    // LINKS
+      "https://tusitio.com/contact",  // CONTACT
+      "https://tusitio.com/fun",      // FUN
+      "https://tusitio.com/art"       // ART
+    ];
+
+    // -----------------------
+    // INICIALIZACIÓN CANVAS
+    // -----------------------
+    const canvas = document.getElementById('bg');
+    const ctx = canvas.getContext('2d');
+
+    let width  = window.innerWidth;
+    let height = window.innerHeight;
+    canvas.width  = width;
+    canvas.height = height;
+
+    window.addEventListener('resize', () => {
+      width  = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width  = width;
+      canvas.height = height;
+      initNebulas();
+      initStars();
+    });
+
+    // -----------------------
+    // NEBULOSAS
+    // -----------------------
+    const nebulas = [];
+
+    function initNebulas() {
+      nebulas.length = 0;
+      const base = Math.min(width, height);
+
+      for (let i = 0; i < NEBULA_COUNT; i++) {
+        const cx = Math.random() * width;
+        const cy = Math.random() * height;
+
+        const innerRadius = base * (0.15 + Math.random() * 0.07);
+        const outerRadius = innerRadius * (1.6 + Math.random() * 0.6);
+
+        const color = NEBULA_COLORS[i % NEBULA_COLORS.length];
+
+        // Forma grande orgánica
+        const numPoints = 10 + Math.floor(Math.random() * 5); // 10–14 puntos
+        const points = [];
+        for (let p = 0; p < numPoints; p++) {
+          const angle = (Math.PI * 2 / numPoints) * p + Math.random() * 0.3;
+          const radius = outerRadius * (0.7 + Math.random() * 0.3);
+          const x = cx + Math.cos(angle) * radius;
+          const y = cy + Math.sin(angle) * radius;
+          points.push({ x, y });
+        }
+
+        // Núcleo pequeño: 20–40% del tamaño, desplazado ±10 px
+        const offsetX = (Math.random() * 20) - 10;
+        const offsetY = (Math.random() * 20) - 10;
+        const coreX = cx + offsetX;
+        const coreY = cy + offsetY;
+        const coreRadiusBase = outerRadius * (0.2 + Math.random() * 0.2); // 20–40%
+
+        const corePoints = [];
+        const corePointsCount = 8 + Math.floor(Math.random() * 4); // 8–11 puntos
+        for (let p = 0; p < corePointsCount; p++) {
+          const angle = (Math.PI * 2 / corePointsCount) * p + Math.random() * 0.3;
+          const r = coreRadiusBase * (0.7 + Math.random() * 0.3);
+          const x = coreX + Math.cos(angle) * r;
+          const y = coreY + Math.sin(angle) * r;
+          corePoints.push({ x, y });
+        }
+
+        nebulas.push({
+          x: cx,
+          y: cy,
+          innerRadius,
+          outerRadius,
+          color,
+          points,
+          core: {
+            x: coreX,
+            y: coreY,
+            radius: coreRadiusBase,
+            points: corePoints
+          }
+        });
+      }
+    }
+
+    // -----------------------
+    // ESTRELLAS
+    // -----------------------
+    const stars = [];
+
+    function pushStar(x, y, boost = false) {
+      stars.push({
+        x,
+        y,
+        radius: Math.random() * 1.4 + 0.2,
+        baseAlpha: (Math.random() * 0.7 + 0.1) + (boost ? 0.1 : 0),
+        twinkleSpeed: Math.random() * 0.0025 + 0.0005,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+
+    function initStars() {
+      stars.length = 0;
+
+      // estrellas "globales" (duplicadas)
+      for (let i = 0; i < STAR_COUNT; i++) {
+        pushStar(Math.random() * width, Math.random() * height, false);
+      }
+
+      // estrellas extra cerca de cada nebulosa
+      for (const neb of nebulas) {
+        for (let i = 0; i < NEBULA_EXTRA_STARS; i++) {
+          const r = Math.random() * neb.innerRadius;
+          const angle = Math.random() * Math.PI * 2;
+          const x = neb.x + Math.cos(angle) * r;
+          const y = neb.y + Math.sin(angle) * r;
+          pushStar(x, y, true);
+        }
+      }
+    }
+
+    initNebulas();
+    initStars();
+
+    // -----------------------
+    // PARTÍCULAS DEL MOUSE
+    // -----------------------
+    const particles = [];
+    let mouseX = width / 2;
+    let mouseY = height / 2;
+
+    window.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      createTrailParticles(mouseX, mouseY);
+    });
+
+    function createTrailParticles(x, y) {
+      for (let i = 0; i < 3; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 30 + 10;
+        particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          size: Math.random() * 2.2 + 0.8,
+          life: PARTICLE_LIFETIME,
+        });
+      }
+      if (particles.length > MAX_PARTICLES) {
+        particles.splice(0, particles.length - MAX_PARTICLES);
+      }
+    }
+
+    // -----------------------
+    // BOTONES ORBITALES
+    // -----------------------
+    const clusters = [];
+
+    window.addEventListener('click', (e) => {
+      const centerX   = e.clientX;
+      const centerY   = e.clientY;
+      const createdAt = performance.now();
+
+      const buttons = [];
+
+      // elegimos 5 índices distintos al azar de la paleta de 10
+      const indices = [...Array(GALACTIC_PALETTE.length).keys()];
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      const chosenIndices = indices.slice(0, BUTTON_LABELS.length);
+
+      for (let i = 0; i < BUTTON_LABELS.length; i++) {
+        const angleOffset = (Math.PI * 2 / BUTTON_LABELS.length) * i;
+
+        const btn = document.createElement('a');
+        btn.href   = LINK_TARGETS[i];
+        btn.target = "_blank";
+        btn.className = "orbit-btn";
+        btn.textContent = BUTTON_LABELS[i];
+
+        const col   = GALACTIC_PALETTE[chosenIndices[i]];
+        const bgCol = col.replace("0.95", "0.22");
+
+        btn.style.setProperty("--btn-color", col);
+        btn.style.setProperty("--btn-bg", bgCol);
+        btn.style.width  = BUTTON_SIZE + "px";
+        btn.style.height = BUTTON_SIZE + "px";
+
+        document.body.appendChild(btn);
+
+        buttons.push({
+          el: btn,
+          offsetAngle: angleOffset,
+          orbitRadius: ORBIT_RADIUS_BASE + (Math.random() * 6 - 3),
+          speed: ORBIT_SPEED_BASE + (Math.random() * 0.04 - 0.02)
+        });
+      }
+
+      clusters.push({
+        createdAt,
+        centerX,
+        centerY,
+        fading: false,
+        fadeStart: null,
+        buttons
+      });
+    });
+
+    function updateClusters(time) {
+      for (let i = clusters.length - 1; i >= 0; i--) {
+        const cluster  = clusters[i];
+        const elapsed  = time - cluster.createdAt;
+        const t        = elapsed / 1000;
+        const { centerX, centerY } = cluster;
+
+        // órbitas mientras el cluster exista
+        cluster.buttons.forEach(btnObj => {
+          const angle = btnObj.offsetAngle + btnObj.speed * t;
+          const x = centerX + Math.cos(angle) * btnObj.orbitRadius;
+          const y = centerY + Math.sin(angle) * btnObj.orbitRadius;
+          btnObj.el.style.left = x + "px";
+          btnObj.el.style.top  = y + "px";
+        });
+
+        // iniciar fade-out después de CLUSTER_LIFETIME (7s)
+        if (!cluster.fading && elapsed > CLUSTER_LIFETIME) {
+          cluster.fading = true;
+          cluster.fadeStart = time;
+          cluster.buttons.forEach(btnObj => btnObj.el.classList.add("fade-out"));
+        }
+
+        // manejar desvanecimiento vía JS
+        if (cluster.fading) {
+          const fadeElapsed = time - cluster.fadeStart;
+          const ratio = Math.min(fadeElapsed / FADE_DURATION, 1);
+
+          // Opacidad: de 0.9 a ~0.135 (15% de 0.9)
+          const startOpacity = 0.9;
+          const endOpacity   = 0.135;
+          const opacity = startOpacity - (startOpacity - endOpacity) * ratio;
+
+          // Scale igual que antes (de 1 a 0.3)
+          const scale   = 1 - 0.7 * ratio;
+
+          cluster.buttons.forEach(btnObj => {
+            btnObj.el.style.opacity = opacity;
+            btnObj.el.style.transform = `translate(-50%, -50%) scale(${scale})`;
+          });
+
+          // al terminar el fade (ya está en ~15%), se eliminan
+          if (ratio >= 1) {
+            cluster.buttons.forEach(btnObj => btnObj.el.remove());
+            clusters.splice(i, 1);
+          }
+        }
+      }
+    }
+
+    // -----------------------
+    // DIBUJO DE NEBULOSAS
+    // (misma forma, pero opacidad a la mitad)
+    // -----------------------
+    function drawNebulas() {
+      for (const neb of nebulas) {
+        const c = neb.color;
+
+        // Gradiente muy sutil para la forma grande (mitad de opacidad)
+        const grad = ctx.createRadialGradient(
+          neb.x, neb.y, 0,
+          neb.x, neb.y, neb.outerRadius
+        );
+        grad.addColorStop(0.0, `rgba(${c.r},${c.g},${c.b},0.045)`);
+        grad.addColorStop(0.4, `rgba(${c.r},${c.g},${c.b},0.025)`);
+        grad.addColorStop(1.0, `rgba(${c.r},${c.g},${c.b},0.0)`);
+
+        const pts = neb.points;
+        if (pts && pts.length >= 3) {
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+
+          const len = pts.length;
+          for (let i = 0; i < len; i++) {
+            const p0 = pts[i];
+            const p1 = pts[(i + 1) % len];
+            const midX = (p0.x + p1.x) / 2;
+            const midY = (p0.y + p1.y) / 2;
+
+            if (i === 0) {
+              ctx.moveTo(midX, midY);
+            } else {
+              ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
+            }
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // Núcleo más pequeño, también con opacidad reducida a la mitad
+        if (neb.core && neb.core.points && neb.core.points.length >= 3) {
+          const cc = neb.color;
+          const core = neb.core;
+
+          const gradCore = ctx.createRadialGradient(
+            core.x, core.y, 0,
+            core.x, core.y, core.radius
+          );
+          gradCore.addColorStop(0.0, `rgba(${cc.r},${cc.g},${cc.b},0.07)`);
+          gradCore.addColorStop(0.6, `rgba(${cc.r},${cc.g},${cc.b},0.03)`);
+          gradCore.addColorStop(1.0, `rgba(${cc.r},${cc.g},${cc.b},0.0)`);
+
+          const cpts = core.points;
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = gradCore;
+          ctx.beginPath();
+
+          const clen = cpts.length;
+          for (let i = 0; i < clen; i++) {
+            const p0 = cpts[i];
+            const p1 = cpts[(i + 1) % clen];
+            const midX = (p0.x + p1.x) / 2;
+            const midY = (p0.y + p1.y) / 2;
+
+            if (i === 0) {
+              ctx.moveTo(midX, midY);
+            } else {
+              ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
+            }
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+
+    // -----------------------
+    // LOOP PRINCIPAL
+    // -----------------------
+    let lastTime = performance.now();
+
+    function animate(time) {
+      const delta = (time - lastTime) / 1000;
+      lastTime = time;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // fondo negro
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, width, height);
+
+      // nebulosas (debajo de las estrellas)
+      drawNebulas();
+
+      // estrellas
+      for (const star of stars) {
+        star.phase += star.twinkleSpeed * 16;
+        const alpha = star.baseAlpha + Math.sin(star.phase) * 0.3;
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+      }
+
+      // partículas del mouse
+      ctx.globalAlpha = 1;
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= delta;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+        const lifeRatio = p.life / PARTICLE_LIFETIME;
+        p.x += p.vx * delta;
+        p.y += p.vy * delta;
+
+        ctx.globalAlpha = lifeRatio * 0.9;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * lifeRatio, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(200,200,255,1)";
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1;
+
+      updateClusters(time);
+      requestAnimationFrame(animate);
+    }
+
+    animate(performance.now());
+  </script>
+</body>
+</html>
